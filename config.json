@@ -1,0 +1,30 @@
+{
+  "sites": [
+    {
+      "url": "https://halleeadelman.com",
+      "maxPages": 200, 
+      "javascript": true
+    },
+    {
+      "url": "https://ouramericanfamilyfilm.com/",
+      "maxPages": 60
+    },
+    {
+      "url": "https://myquietship.com/",
+      "maxPages": 10,
+      "javascript": true
+    },
+    {
+      "url": "https://waypastbooks.com",
+      "maxPages": 60,
+      "javascript": true
+    },
+    {
+      "url": "https://wohapro.com/",
+      "maxPages": 100,
+      "javascript": true
+    }
+  ],
+  "concurrency": 8,
+  "timeoutSeconds": 15
+}
