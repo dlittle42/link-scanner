@@ -126,4 +126,4 @@ Paste each printed hash into `users.json`. Also replace the `secret` string. `us
 
 ## Report
 
-The email and `report.html` group results by site. Each broken link shows the URL, the HTTP status or error, and the pages where it was found (up to 10 source pages). Unchecked links (HTTP 429 and bot-protection challenges) are listed separately.
+The email and `report.html` group results by site. Each review error shows the URL, the HTTP status or error, and the pages where it was found (up to 10 source pages). Inaccessible links are not listed. The report links to the review app with the count for that site.

@@ -26,6 +26,7 @@ SKIP_SCHEMES = {"mailto", "tel", "javascript", "data"}
 REPORT_PATH = "report.html"
 REPORT_JSON_PATH = "report.json"
 MAX_SOURCES_SHOWN = 10
+REVIEW_APP_URL = "https://ha-link-scanner.vercel.app/"
 BOT_SAMPLE_BYTES = 16384
 RENDER_TIMEOUT_FLOOR_SECONDS = 30
 RENDER_WAIT_SECONDS = 12
@@ -605,20 +606,29 @@ def broken_count(sites: list[SiteResult]) -> int:
     return sum(len(site.broken) for site in sites)
 
 
+def review_error_phrase(count: int) -> str:
+    if count == 1:
+        return "1 review error"
+    return f"{count} review errors"
+
+
+def inaccessible_label(count: int) -> str:
+    return f"Review: Inaccessible ({count})"
+
+
 def subject_for(sites: list[SiteResult]) -> str:
-    broken = broken_count(sites)
+    errors = broken_count(sites)
     failed = sum(1 for site in sites if site.error)
-    if broken and failed:
-        return f"Outbound link report: {broken} broken, {failed} site errors"
-    if broken == 1:
-        return "Outbound link report: 1 broken link"
-    if broken:
-        return f"Outbound link report: {broken} broken links"
+    if errors and failed:
+        site_word = "site error" if failed == 1 else "site errors"
+        return f"Outbound link report: {review_error_phrase(errors)}, {failed} {site_word}"
+    if errors:
+        return f"Outbound link report: {review_error_phrase(errors)}"
     if failed == 1:
         return "Outbound link report: 1 site could not be crawled"
     if failed:
         return f"Outbound link report: {failed} sites could not be crawled"
-    return "Outbound link report: no broken links"
+    return "Outbound link report: no review errors"
 
 
 def render_text(sites: list[SiteResult], generated_at: str) -> str:
@@ -631,10 +641,8 @@ def render_text(sites: list[SiteResult], generated_at: str) -> str:
             continue
         lines.append(f"  Pages crawled: {site.pages_crawled}")
         lines.append(f"  Outbound links checked: {site.outbound_checked}")
-        lines.append(f"  Broken: {len(site.broken)}")
-        lines.append(f"  Unchecked: {len(site.unchecked)}")
+        lines.append(f"  Review: Error: {len(site.broken)}")
         if site.broken:
-            lines.append("  Broken links:")
             for link in site.broken:
                 lines.append(f"  - {link.url}")
                 lines.append(f"    {status_label(link)}")
@@ -642,18 +650,16 @@ def render_text(sites: list[SiteResult], generated_at: str) -> str:
                 for source in format_sources(link.sources):
                     lines.append(f"      {source}")
         else:
-            lines.append("  No broken outbound links.")
+            lines.append("  No review errors.")
         if site.unchecked:
-            lines.append("  Unchecked links:")
-            for link in site.unchecked:
-                lines.append(f"  - {link.url}")
-                lines.append(f"    {status_label(link)}")
+            lines.append(f"  {inaccessible_label(len(site.unchecked))}: {REVIEW_APP_URL}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
 def render_html(sites: list[SiteResult], generated_at: str) -> str:
     sections = []
+    review_url = html.escape(REVIEW_APP_URL, quote=True)
     for site in sites:
         title = html.escape(site.start_url)
         if site.error:
@@ -665,39 +671,30 @@ def render_html(sites: list[SiteResult], generated_at: str) -> str:
             )
             continue
 
-        rows = []
-        if not site.broken:
-            rows.append(
-                "<tr><td colspan=\"3\">No broken outbound links.</td></tr>"
-            )
-        for link in site.broken:
-            source_html = "<br>".join(html.escape(source) for source in format_sources(link.sources))
-            rows.append(
-                "<tr>"
-                f"<td><a href=\"{html.escape(link.url, quote=True)}\">{html.escape(link.url)}</a></td>"
-                f"<td>{html.escape(status_label(link))}</td>"
-                f"<td>{source_html}</td>"
-                "</tr>"
-            )
-
-        unchecked_rows = []
-        for link in site.unchecked:
-            source_html = "<br>".join(html.escape(source) for source in format_sources(link.sources))
-            unchecked_rows.append(
-                "<tr>"
-                f"<td><a href=\"{html.escape(link.url, quote=True)}\">{html.escape(link.url)}</a></td>"
-                f"<td>{html.escape(status_label(link))}</td>"
-                f"<td>{source_html}</td>"
-                "</tr>"
-            )
-        unchecked_table = ""
-        if unchecked_rows:
-            unchecked_table = (
-                "<h3>Unchecked</h3>"
+        if site.broken:
+            rows = []
+            for link in site.broken:
+                source_html = "<br>".join(html.escape(source) for source in format_sources(link.sources))
+                rows.append(
+                    "<tr>"
+                    f"<td><a href=\"{html.escape(link.url, quote=True)}\">{html.escape(link.url)}</a></td>"
+                    f"<td>{html.escape(status_label(link))}</td>"
+                    f"<td>{source_html}</td>"
+                    "</tr>"
+                )
+            error_block = (
                 "<table>"
                 "<tr><th>URL</th><th>Status</th><th>Found on</th></tr>"
-                + "".join(unchecked_rows)
+                + "".join(rows)
                 + "</table>"
+            )
+        else:
+            error_block = "<p>No review errors.</p>"
+
+        inaccessible = ""
+        if site.unchecked:
+            inaccessible = (
+                f'<p><a href="{review_url}">{html.escape(inaccessible_label(len(site.unchecked)))}</a></p>'
             )
 
         sections.append(
@@ -706,14 +703,10 @@ def render_html(sites: list[SiteResult], generated_at: str) -> str:
             "<p>"
             f"Pages crawled: {site.pages_crawled}<br>"
             f"Outbound links checked: {site.outbound_checked}<br>"
-            f"Broken: {len(site.broken)}<br>"
-            f"Unchecked: {len(site.unchecked)}"
+            f"Review: Error: {len(site.broken)}"
             "</p>"
-            "<table>"
-            "<tr><th>Broken URL</th><th>Status</th><th>Found on</th></tr>"
-            + "".join(rows)
-            + "</table>"
-            + unchecked_table
+            + error_block
+            + inaccessible
             + "</section>"
         )
 
