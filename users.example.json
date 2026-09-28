@@ -1,0 +1,15 @@
+{
+  "secret": "replace-this-with-a-long-random-string",
+  "users": [
+    {
+      "username": "admin",
+      "role": "admin",
+      "password_hash": "scrypt:32768:8:1$pO7lio56beQay30T$96fca846ea41348f8adf6931c71a61151c6c08201074a40c2fa12214936c3311d9c69f828f14930b01f9443a07f1b00dbe334486ed492eb72fc596777b4b44f6"
+    },
+    {
+      "username": "team",
+      "role": "member",
+      "password_hash": "scrypt:32768:8:1$4ct82086nq71gmPQ$affabef7c461e50d3542a63a5ff91d116df84abfe812e491ef8fb36532ad787ffb5154d5e4dcb38f8ab0b52ce76b89f1ec5a25b92ed4b0e02ad4e497679c473e"
+    }
+  ]
+}

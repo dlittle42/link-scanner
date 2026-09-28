@@ -4,3 +4,6 @@ __pycache__/
 venv/
 .env
 report.html
+report.json
+decisions.db
+users.json

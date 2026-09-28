@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Review link{% endblock %}
+{% block body %}
+<p class="back"><a href="{{ url_for('index') }}">Back to the queue</a></p>
+<article class="card">
+  <p class="meta">{{ link.site }}</p>
+  <h1><a href="{{ link.url }}">{{ link.url }}</a></h1>
+  <p class="tags">
+    <span class="tag kind">{{ link.kind }}</span>
+    <span class="tag status">{{ link.status }}</span>
+    <span class="tag verdict {{ link.verdict or 'open' }}">{{ decision_label(link) }}</span>
+  </p>
+  {% if sources %}
+  <h2>Found on</h2>
+  <ul class="sources">
+    {% for source in sources %}
+    <li>{{ source }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</article>
+
+<section class="card">
+  <h2>Is this link broken?</h2>
+  {% if current_user.role == 'admin' %}
+  <p class="lede">Confirm what a person should treat as true. Bot walls and rate limits often look broken to the scanner and are not.</p>
+  <form method="post" action="{{ url_for('set_verdict', finding_id=link.id) }}" class="row-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button type="submit" name="verdict" value="broken">Confirm broken</button>
+    <button type="submit" name="verdict" value="not_broken" class="secondary">Not broken</button>
+  </form>
+  {% elif link.verdict == 'broken' %}
+  <p>Confirmed broken{% if link.verdict_by %} by {{ link.verdict_by }}{% endif %}{% if link.verdict_at %} on {{ link.verdict_at }}{% endif %}.</p>
+  {% elif link.verdict == 'not_broken' %}
+  <p>An admin marked this link as not broken{% if link.verdict_by %} ({{ link.verdict_by }}{% if link.verdict_at %}, {{ link.verdict_at }}{% endif %}){% endif %}.</p>
+  {% else %}
+  <p>An admin still needs to confirm whether this link is broken.</p>
+  {% endif %}
+  {% if current_user.role == 'admin' and link.verdict %}
+  <p class="meta">Last confirmation{% if link.verdict_by %} by {{ link.verdict_by }}{% endif %}{% if link.verdict_at %} on {{ link.verdict_at }}{% endif %}.</p>
+  {% endif %}
+</section>
+
+{% if link.verdict == 'broken' %}
+<section class="card">
+  <h2>What should happen to it?</h2>
+  {% if link.action == 'replace' %}
+  <p>Replacement suggested{% if link.action_by %} by {{ link.action_by }}{% endif %}{% if link.action_at %} on {{ link.action_at }}{% endif %}:</p>
+  <p><a href="{{ link.alternative_url }}">{{ link.alternative_url }}</a></p>
+  {% elif link.action == 'delete' %}
+  <p>Deletion requested{% if link.action_by %} by {{ link.action_by }}{% endif %}{% if link.action_at %} on {{ link.action_at }}{% endif %}.</p>
+  {% else %}
+  <p class="lede">Suggest a page that should replace this link, or ask for the link to be removed.</p>
+  {% endif %}
+  {% if link.action_note %}
+  <p class="note">{{ link.action_note }}</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('set_action', finding_id=link.id) }}" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label class="choice"><input type="radio" name="action" value="replace" {% if link.action != 'delete' %}checked{% endif %}> Suggest a replacement</label>
+    <label>Replacement URL <input name="alternative_url" value="{{ link.alternative_url or '' }}" placeholder="https://"></label>
+    <label class="choice"><input type="radio" name="action" value="delete" {% if link.action == 'delete' %}checked{% endif %}> Request that the link be deleted</label>
+    <label>Note <textarea name="note" rows="3">{{ link.action_note or '' }}</textarea></label>
+    <button type="submit">{% if link.action %}Update action{% else %}Save action{% endif %}</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

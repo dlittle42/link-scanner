@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Log in · Link review{% endblock %}
+{% block body %}
+<form class="card narrow" method="post" action="{{ url_for('login_submit', next=request.args.get('next')) }}">
+  <h1>Log in</h1>
+  <p class="lede">Admins confirm whether a link is broken. Anyone on the team can then suggest a replacement or ask for it to be deleted.</p>
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <label>Username <input name="username" autocomplete="username" required></label>
+  <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+  <button type="submit">Log in</button>
+</form>
+{% endblock %}

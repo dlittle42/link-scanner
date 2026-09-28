@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup
 USER_AGENT = "BrokenLinkMonitor/1.0"
 SKIP_SCHEMES = {"mailto", "tel", "javascript", "data"}
 REPORT_PATH = "report.html"
+REPORT_JSON_PATH = "report.json"
 MAX_SOURCES_SHOWN = 10
 BOT_SAMPLE_BYTES = 16384
 RENDER_TIMEOUT_FLOOR_SECONDS = 30
@@ -732,6 +733,32 @@ def render_html(sites: list[SiteResult], generated_at: str) -> str:
     )
 
 
+def render_json(sites: list[SiteResult], generated_at: str) -> dict:
+    payload_sites = []
+    for site in sites:
+        links = []
+        for kind, group in (("broken", site.broken), ("unchecked", site.unchecked)):
+            for link in group:
+                links.append(
+                    {
+                        "url": link.url,
+                        "kind": kind,
+                        "status": status_label(link),
+                        "sources": format_sources(link.sources),
+                    }
+                )
+        payload_sites.append(
+            {
+                "url": site.start_url,
+                "pagesCrawled": site.pages_crawled,
+                "outboundChecked": site.outbound_checked,
+                "error": site.error,
+                "links": links,
+            }
+        )
+    return {"generatedAt": generated_at, "sites": payload_sites}
+
+
 def send_email(text: str, html_body: str, smtp: dict, subject: str) -> None:
     message = EmailMessage()
     message["Subject"] = subject
@@ -798,14 +825,17 @@ async def run(args: argparse.Namespace) -> int:
     document = render_html(results, generated_at)
     with open(REPORT_PATH, "w", encoding="utf-8") as handle:
         handle.write(document)
+    with open(REPORT_JSON_PATH, "w", encoding="utf-8") as handle:
+        json.dump(render_json(results, generated_at), handle, indent=2)
+        handle.write("\n")
     print(text, end="")
 
     if args.dry_run:
-        print(f"Dry run: email not sent. Wrote {REPORT_PATH}", file=sys.stderr)
+        print(f"Dry run: email not sent. Wrote {REPORT_PATH} and {REPORT_JSON_PATH}", file=sys.stderr)
     else:
         assert smtp is not None
         send_email(text, document, smtp, subject_for(results))
-        print(f"Email sent. Wrote {REPORT_PATH}", file=sys.stderr)
+        print(f"Email sent. Wrote {REPORT_PATH} and {REPORT_JSON_PATH}", file=sys.stderr)
 
     if any(site.error for site in results):
         return 1

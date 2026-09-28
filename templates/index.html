@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Queue · Link review{% endblock %}
+{% block body %}
+{% if not generated_at %}
+<section class="card">
+  <h1>No scan yet</h1>
+  <p>Run the checker first. This queue reads <code>report.json</code> from that run.</p>
+  <pre>python checker.py --config config.json --dry-run</pre>
+</section>
+{% else %}
+<div class="page-head">
+  <div>
+    <h1>Review queue</h1>
+    <p class="meta">Scan from {{ generated_at }}</p>
+  </div>
+</div>
+<nav class="views">
+  {% for key, label in [("open", "Needs a decision"), ("broken", "Confirmed broken"), ("clear", "Not broken"), ("all", "All")] %}
+  <a class="{{ 'active' if view == key else '' }}" href="{{ url_for('index', view=key) }}">{{ label }} <span>{{ counts[key] }}</span></a>
+  {% endfor %}
+</nav>
+{% for site in site_errors %}
+<p class="flash warn"><strong>{{ site.url }}</strong> could not be crawled: {{ site.error }}</p>
+{% endfor %}
+{% if not grouped %}
+<p class="empty">Nothing in this view.</p>
+{% endif %}
+{% for site, links in grouped.items() %}
+<section class="site">
+  <h2>{{ site }}</h2>
+  <ul class="links">
+    {% for link in links %}
+    <li>
+      <a href="{{ url_for('link_detail', finding_id=link.id) }}">
+        <span class="url">{{ link.url }}</span>
+        <span class="tags">
+          <span class="tag kind">{{ link.kind }}</span>
+          <span class="tag status">{{ link.status }}</span>
+          <span class="tag verdict {{ link.verdict or 'open' }}">{{ decision_label(link) }}</span>
+        </span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}

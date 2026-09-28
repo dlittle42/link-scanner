@@ -66,15 +66,63 @@ Push this repository to GitHub, then add these repository secrets. In the repo: 
 | `SMTP_PASSWORD` | app password or SMTP password |
 | `EMAIL_FROM` | `you@gmail.com` |
 | `EMAIL_TO` | `you@gmail.com,team@example.com` |
+| `SUPABASE_URL` | `https://your-project.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | service role key, not the anon key |
 
 The workflow file does not contain these values. [`.github/workflows/link-check.yml`](.github/workflows/link-check.yml) runs:
 
 - on schedule, Mondays at 07:00 UTC (`0 7 * * 1`)
 - when you click **Run workflow** (**Actions → Broken link report → Run workflow**)
 
-Each run uploads `report.html` as the `link-report` artifact, including when the check fails. Open the run and download it from the Artifacts section.
+Each run uploads `report.html` as the `link-report` artifact, including when the check fails. Open the run and download it from the Artifacts section. When the Supabase secrets are set, the same run publishes `report.json` for the hosted review app. Decisions already stored for a URL are left in place.
 
 A public repository does not spend GitHub Actions minutes on this job. A private repository does. The runner needs network access to your sites and to the SMTP server.
+
+## Hosted review
+
+The team reviews flagged links in the React app under [`review/`](review/). The weekly job fills Supabase. People open the hosted site, sign in, and do not run the checker themselves.
+
+1. Create a Supabase project and run [`supabase/schema.sql`](supabase/schema.sql) in the SQL editor.
+2. In Authentication, invite each person by email. New accounts start as `member`. Promote an admin:
+
+```sql
+update public.profiles
+set role = 'admin'
+where id = (select id from auth.users where email = 'you@example.com');
+```
+
+3. Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the GitHub Actions secrets. The service role key writes scans. It must not be used in the website.
+4. Deploy `review/` as a static site. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from [`review/.env.example`](review/.env.example).
+
+To run the review app locally:
+
+```bash
+cd review
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+An admin confirms whether a link is really broken. After that, anyone signed in can suggest a replacement URL or request that the link be deleted.
+
+## Review links locally
+
+The checker also writes `report.json`. A small web app reads that file so people can decide what to do with each flagged URL.
+
+An admin confirms whether the link is really broken. After that, anyone on the team can suggest a replacement URL or request that the link be deleted. Those decisions are stored in `decisions.db` and stay attached to the URL when the next scan arrives.
+
+```bash
+cp users.example.json users.json
+python web.py
+```
+
+Open http://127.0.0.1:5000. The example file signs in `admin` / `admin-pass` and `team` / `team-pass`. Change both passwords before anyone else can reach the app:
+
+```bash
+python web.py hash-password
+```
+
+Paste each printed hash into `users.json`. Also replace the `secret` string. `users.json` is gitignored.
 
 ## Report
 
