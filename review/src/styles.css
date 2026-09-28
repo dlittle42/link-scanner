@@ -74,10 +74,8 @@ h2 {
 .site h3 {
   margin: 0.9rem 0 0.15rem;
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.78rem;
+  font-size: 0.92rem;
   font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: #5c564f;
 }
 

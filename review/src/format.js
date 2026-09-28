@@ -12,6 +12,11 @@ export function decisionLabel(decision) {
   return "Confirmed broken"
 }
 
+export function kindLabel(kind) {
+  if (kind === "unchecked") return "Review: Inaccessible"
+  return "Review: Error"
+}
+
 export function verdictClass(decision) {
   if (!decision?.verdict) return "open"
   return decision.verdict

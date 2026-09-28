@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { decisionLabel, errorRank, isOpen, verdictClass } from "./format"
+import { decisionLabel, errorRank, isOpen, kindLabel, verdictClass } from "./format"
 import { supabase } from "./supabase"
 
 const VIEWS = [
@@ -11,8 +11,8 @@ const VIEWS = [
 ]
 
 const GROUPS = [
-  ["broken", "Broken"],
-  ["unchecked", "Unchecked"],
+  ["broken", kindLabel("broken")],
+  ["unchecked", kindLabel("unchecked")],
 ]
 
 function matches(view, decision) {

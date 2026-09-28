@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useAuth } from "./Auth"
-import { decisionLabel, isHttpUrl, nowLabel, verdictClass } from "./format"
+import { decisionLabel, isHttpUrl, kindLabel, nowLabel, verdictClass } from "./format"
 import { supabase } from "./supabase"
 
 export default function LinkPage() {
@@ -119,7 +119,7 @@ export default function LinkPage() {
           <a href={link.url}>{link.url}</a>
         </h1>
         <p className="tags">
-          <span className="tag kind">{link.kind}</span>
+          <span className="tag kind">{kindLabel(link.kind)}</span>
           <span className="tag status">{link.status}</span>
           <span className={`tag verdict ${verdictClass(decision)}`}>{decisionLabel(decision)}</span>
         </p>
