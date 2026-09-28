@@ -22,6 +22,19 @@ export function isOpen(decision) {
   return decision.verdict === "broken" && !decision.action
 }
 
+const HTTP_STATUS = /\bHTTP\s+(\d+)\b/
+
+// Most likely broken first: 404, then a failed connection, then 403, then 429.
+export function errorRank(status) {
+  const match = String(status || "").match(HTTP_STATUS)
+  if (!match) return 1
+  const code = Number(match[1])
+  if (code === 404) return 0
+  if (code === 403) return 2
+  if (code === 429) return 3
+  return 4
+}
+
 export function isHttpUrl(value) {
   try {
     const url = new URL(value)

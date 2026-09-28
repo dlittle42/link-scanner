@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import { useAuth } from "./Auth"
 import { decisionLabel, isHttpUrl, nowLabel, verdictClass } from "./format"
 import { supabase } from "./supabase"
 
 export default function LinkPage() {
   const { id } = useParams()
+  const location = useLocation()
   const auth = useAuth()
   const [link, setLink] = useState(null)
   const [missing, setMissing] = useState(false)
@@ -108,7 +109,7 @@ export default function LinkPage() {
   return (
     <>
       <p className="back">
-        <Link to="/">Back to the queue</Link>
+        <Link to={`/${location.search}`}>Back to the queue</Link>
       </p>
       {message ? <p className="flash">{message}</p> : null}
       {error ? <p className="flash warn">{error}</p> : null}

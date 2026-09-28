@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { decisionLabel, isOpen, verdictClass } from "./format"
+import { decisionLabel, errorRank, isOpen, verdictClass } from "./format"
 import { supabase } from "./supabase"
 
 const VIEWS = [
@@ -10,11 +10,20 @@ const VIEWS = [
   ["all", "All"],
 ]
 
+const GROUPS = [
+  ["broken", "Broken"],
+  ["unchecked", "Unchecked"],
+]
+
 function matches(view, decision) {
   if (view === "broken") return decision?.verdict === "broken"
   if (view === "clear") return decision?.verdict === "not_broken"
   if (view === "all") return true
   return isOpen(decision)
+}
+
+function kindRank(kind) {
+  return kind === "unchecked" ? 1 : 0
 }
 
 export default function Queue() {
@@ -46,7 +55,13 @@ export default function Queue() {
             ...row,
             decision: byUrl.get(row.url) || null,
           }))
-          .sort((a, b) => a.site.localeCompare(b.site) || a.url.localeCompare(b.url)),
+          .sort(
+            (a, b) =>
+              a.site.localeCompare(b.site) ||
+              kindRank(a.kind) - kindRank(b.kind) ||
+              errorRank(a.status) - errorRank(b.status) ||
+              a.url.localeCompare(b.url),
+          ),
       )
     })
     return () => {
@@ -65,19 +80,35 @@ export default function Queue() {
     )
   }
 
+  const requestedSite = params.get("site") || ""
+  const scoped = requestedSite ? findings.filter((row) => row.site === requestedSite) : findings
   const counts = {
-    open: findings.filter((row) => isOpen(row.decision)).length,
-    broken: findings.filter((row) => row.decision?.verdict === "broken").length,
-    clear: findings.filter((row) => row.decision?.verdict === "not_broken").length,
-    all: findings.length,
+    open: scoped.filter((row) => isOpen(row.decision)).length,
+    broken: scoped.filter((row) => row.decision?.verdict === "broken").length,
+    clear: scoped.filter((row) => row.decision?.verdict === "not_broken").length,
+    all: scoped.length,
   }
-  const visible = findings.filter((row) => matches(view, row.decision))
+  const visible = scoped.filter((row) => matches(view, row.decision))
   const grouped = new Map()
   for (const row of visible) {
     if (!grouped.has(row.site)) grouped.set(row.site, [])
     grouped.get(row.site).push(row)
   }
-  const siteErrors = Array.isArray(scan.errors) ? scan.errors : []
+  const siteErrors = (Array.isArray(scan.errors) ? scan.errors : []).filter(
+    (site) => !requestedSite || site.url === requestedSite,
+  )
+
+  function viewPath(key) {
+    const next = new URLSearchParams({ view: key })
+    if (requestedSite) next.set("site", requestedSite)
+    return `/?${next.toString()}`
+  }
+
+  function reviewPath(link) {
+    const next = new URLSearchParams(params)
+    next.set("site", link.site)
+    return `/links/${link.id}?${next.toString()}`
+  }
 
   return (
     <>
@@ -87,7 +118,7 @@ export default function Queue() {
       </div>
       <nav className="views">
         {VIEWS.map(([key, label]) => (
-          <Link key={key} className={view === key ? "active" : ""} to={`/?view=${key}`}>
+          <Link key={key} className={view === key ? "active" : ""} to={viewPath(key)}>
             {label} <span>{counts[key]}</span>
           </Link>
         ))}
@@ -101,22 +132,32 @@ export default function Queue() {
       {[...grouped.entries()].map(([site, links]) => (
         <section className="site" key={site}>
           <h2>{site}</h2>
-          <ul className="links">
-            {links.map((link) => (
-              <li key={link.id}>
-                <Link to={`/links/${link.id}`}>
-                  <span className="url">{link.url}</span>
-                  <span className="tags">
-                    <span className="tag kind">{link.kind}</span>
-                    <span className="tag status">{link.status}</span>
-                    <span className={`tag verdict ${verdictClass(link.decision)}`}>
-                      {decisionLabel(link.decision)}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {GROUPS.map(([kind, label]) => {
+            const group = links.filter((link) => (kind === "unchecked" ? link.kind === "unchecked" : link.kind !== "unchecked"))
+            if (group.length === 0) return null
+            return (
+              <div className="group" key={kind}>
+                <h3>
+                  {label} <span>{group.length}</span>
+                </h3>
+                <ul className="links">
+                  {group.map((link) => (
+                    <li key={link.id}>
+                      <Link to={reviewPath(link)}>
+                        <span className="url">{link.url}</span>
+                        <span className="tags">
+                          <span className="tag status">{link.status}</span>
+                          <span className={`tag verdict ${verdictClass(link.decision)}`}>
+                            {decisionLabel(link.decision)}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
         </section>
       ))}
     </>

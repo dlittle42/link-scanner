@@ -171,3 +171,7 @@ create policy profiles_read_own on public.profiles
 grant select on public.scans, public.findings, public.profiles to authenticated;
 grant select, insert, update on public.decisions to authenticated;
 grant execute on function public.is_admin() to authenticated;
+
+grant select, insert, update, delete on public.findings to service_role;
+grant select, insert, update on public.scans to service_role;
+grant usage, select on sequence public.findings_id_seq to service_role;

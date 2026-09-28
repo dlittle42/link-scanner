@@ -16,7 +16,7 @@
 </div>
 <nav class="views">
   {% for key, label in [("open", "Needs a decision"), ("broken", "Confirmed broken"), ("clear", "Not broken"), ("all", "All")] %}
-  <a class="{{ 'active' if view == key else '' }}" href="{{ url_for('index', view=key) }}">{{ label }} <span>{{ counts[key] }}</span></a>
+  <a class="{{ 'active' if view == key else '' }}" href="{{ index_href(key) }}">{{ label }} <span>{{ counts[key] }}</span></a>
   {% endfor %}
 </nav>
 {% for site in site_errors %}
@@ -31,7 +31,7 @@
   <ul class="links">
     {% for link in links %}
     <li>
-      <a href="{{ url_for('link_detail', finding_id=link.id) }}">
+      <a href="{{ url_for('link_detail', finding_id=link.id, view=view, site=link.site) }}">
         <span class="url">{{ link.url }}</span>
         <span class="tags">
           <span class="tag kind">{{ link.kind }}</span>

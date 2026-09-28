@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Review link{% endblock %}
 {% block body %}
-<p class="back"><a href="{{ url_for('index') }}">Back to the queue</a></p>
+<p class="back"><a href="{{ queue_href() }}">Back to the queue</a></p>
 <article class="card">
   <p class="meta">{{ link.site }}</p>
   <h1><a href="{{ link.url }}">{{ link.url }}</a></h1>
@@ -26,6 +26,8 @@
   <p class="lede">Confirm what a person should treat as true. Bot walls and rate limits often look broken to the scanner and are not.</p>
   <form method="post" action="{{ url_for('set_verdict', finding_id=link.id) }}" class="row-form">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="site" value="{{ request.args.get('site', '') }}">
+    <input type="hidden" name="view" value="{{ request.args.get('view', '') }}">
     <button type="submit" name="verdict" value="broken">Confirm broken</button>
     <button type="submit" name="verdict" value="not_broken" class="secondary">Not broken</button>
   </form>
@@ -57,6 +59,8 @@
   {% endif %}
   <form method="post" action="{{ url_for('set_action', finding_id=link.id) }}" class="stack">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="site" value="{{ request.args.get('site', '') }}">
+    <input type="hidden" name="view" value="{{ request.args.get('view', '') }}">
     <label class="choice"><input type="radio" name="action" value="replace" {% if link.action != 'delete' %}checked{% endif %}> Suggest a replacement</label>
     <label>Replacement URL <input name="alternative_url" value="{{ link.alternative_url or '' }}" placeholder="https://"></label>
     <label class="choice"><input type="radio" name="action" value="delete" {% if link.action == 'delete' %}checked{% endif %}> Request that the link be deleted</label>

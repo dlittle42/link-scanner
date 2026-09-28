@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import sqlite3
 import sys
@@ -81,6 +82,9 @@ def load_users() -> dict:
         by_name[username] = {"password_hash": password_hash, "role": role}
     return {"secret": secret, "users": by_name}
 
+
+HTTP_STATUS = re.compile(r"\bHTTP\s+(\d+)\b")
+VIEWS = {"open", "broken", "clear", "all"}
 
 USERS = load_users()
 app.secret_key = USERS["secret"]
@@ -161,14 +165,18 @@ def sync_report() -> dict | None:
         with open(REPORT_JSON_PATH, encoding="utf-8") as handle:
             data = json.load(handle)
     except FileNotFoundError:
+        g.report = None
         return None
     except json.JSONDecodeError:
+        g.report = None
         return None
     generated_at = data.get("generatedAt")
     sites = data.get("sites")
     if not isinstance(generated_at, str) or not isinstance(sites, list):
+        g.report = None
         return None
 
+    g.report = data
     connection = get_db()
     row = connection.execute("SELECT generated_at FROM scan WHERE id = 1").fetchone()
     if row is not None and row["generated_at"] == generated_at:
@@ -272,7 +280,60 @@ def finding_or_404(finding_id: int) -> sqlite3.Row:
     return row
 
 
-def queue_rows(view: str) -> list[sqlite3.Row]:
+def error_rank(status: str) -> int:
+    """Most likely broken first: 404, then a failed connection, then 403, then 429."""
+    match = HTTP_STATUS.search(status or "")
+    if match is None:
+        return 1
+    code = int(match.group(1))
+    if code == 404:
+        return 0
+    if code == 403:
+        return 2
+    if code == 429:
+        return 3
+    return 4
+
+
+def scanned_sites(report: dict | None) -> list[str]:
+    rows = get_db().execute("SELECT DISTINCT site FROM findings").fetchall()
+    names = [row["site"] for row in rows if row["site"]]
+    seen = set(names)
+    if report:
+        for site in report.get("sites") or []:
+            if not isinstance(site, dict):
+                continue
+            url = site.get("url") or ""
+            if url and url not in seen:
+                names.append(url)
+                seen.add(url)
+    names.sort(key=str.lower)
+    return names
+
+
+def active_site(sites: list[str]) -> str:
+    requested = (request.args.get("site") or "").strip()
+    if requested in sites:
+        return requested
+    return ""
+
+
+def preserved_args() -> dict[str, str]:
+    args = {}
+    view = request.values.get("view")
+    site = (request.values.get("site") or "").strip()
+    if view in VIEWS:
+        args["view"] = view
+    if site:
+        args["site"] = site
+    return args
+
+
+def link_redirect(finding_id: int):
+    return redirect(url_for("link_detail", finding_id=finding_id, **preserved_args()))
+
+
+def queue_rows(view: str, site: str | None = None) -> list[sqlite3.Row]:
     clauses = {
         "open": "(decisions.verdict IS NULL OR (decisions.verdict = 'broken' AND decisions.action IS NULL))",
         "broken": "decisions.verdict = 'broken'",
@@ -280,33 +341,54 @@ def queue_rows(view: str) -> list[sqlite3.Row]:
         "all": "1 = 1",
     }
     where = clauses.get(view, clauses["open"])
-    return get_db().execute(
+    params: list[str] = []
+    if site:
+        where = f"({where}) AND findings.site = ?"
+        params.append(site)
+    rows = get_db().execute(
         f"""
         SELECT findings.*, decisions.verdict, decisions.action, decisions.alternative_url
         FROM findings
         LEFT JOIN decisions ON decisions.url = findings.url
         WHERE {where}
-        ORDER BY findings.site, findings.url
-        """
+        """,
+        params,
     ).fetchall()
+    return sorted(rows, key=lambda row: (row["site"].lower(), error_rank(row["status"]), row["url"]))
 
 
-def counts() -> dict[str, int]:
+def counts(site: str | None = None) -> dict[str, int]:
     connection = get_db()
-    total = connection.execute("SELECT COUNT(*) AS n FROM findings").fetchone()["n"]
+    site_sql = " AND findings.site = ?" if site else ""
+    params = (site,) if site else ()
+    total = connection.execute(
+        f"SELECT COUNT(*) AS n FROM findings WHERE 1 = 1{site_sql}",
+        params,
+    ).fetchone()["n"]
     open_count = connection.execute(
-        """
+        f"""
         SELECT COUNT(*) AS n FROM findings
         LEFT JOIN decisions ON decisions.url = findings.url
-        WHERE decisions.verdict IS NULL
-           OR (decisions.verdict = 'broken' AND decisions.action IS NULL)
-        """
+        WHERE (decisions.verdict IS NULL
+           OR (decisions.verdict = 'broken' AND decisions.action IS NULL)){site_sql}
+        """,
+        params,
     ).fetchone()["n"]
     broken = connection.execute(
-        "SELECT COUNT(*) AS n FROM findings JOIN decisions ON decisions.url = findings.url WHERE verdict = 'broken'"
+        f"""
+        SELECT COUNT(*) AS n FROM findings
+        JOIN decisions ON decisions.url = findings.url
+        WHERE verdict = 'broken'{site_sql}
+        """,
+        params,
     ).fetchone()["n"]
     clear = connection.execute(
-        "SELECT COUNT(*) AS n FROM findings JOIN decisions ON decisions.url = findings.url WHERE verdict = 'not_broken'"
+        f"""
+        SELECT COUNT(*) AS n FROM findings
+        JOIN decisions ON decisions.url = findings.url
+        WHERE verdict = 'not_broken'{site_sql}
+        """,
+        params,
     ).fetchone()["n"]
     return {"all": total, "open": open_count, "broken": broken, "clear": clear}
 
@@ -323,10 +405,34 @@ def sources_of(row) -> list[str]:
 
 @app.context_processor
 def inject_globals():
+    user = current_user()
+    sites = scanned_sites(g.get("report")) if user else []
+    selected = active_site(sites) if sites else ""
+
+    def index_href(view: str) -> str:
+        args = {"view": view}
+        if selected:
+            args["site"] = selected
+        return url_for("index", **args)
+
+    def queue_href() -> str:
+        args = {}
+        view = request.args.get("view")
+        site = (request.args.get("site") or "").strip()
+        if view in VIEWS:
+            args["view"] = view
+        if site:
+            args["site"] = site
+        return url_for("index", **args)
+
     return {
         "csrf_token": csrf_token,
-        "current_user": current_user(),
+        "current_user": user,
         "decision_label": decision_label,
+        "scanned_sites": sites,
+        "selected_site": selected,
+        "index_href": index_href,
+        "queue_href": queue_href,
     }
 
 
@@ -367,9 +473,11 @@ def logout():
 def index():
     report = sync_report()
     view = request.args.get("view", "open")
-    if view not in {"open", "broken", "clear", "all"}:
+    if view not in VIEWS:
         view = "open"
-    rows = queue_rows(view) if report else []
+    sites = scanned_sites(report)
+    selected = active_site(sites)
+    rows = queue_rows(view, selected or None) if report else []
     grouped: dict[str, list] = {}
     for row in rows:
         grouped.setdefault(row["site"], []).append(row)
@@ -377,12 +485,14 @@ def index():
     if report:
         for site in report.get("sites") or []:
             if isinstance(site, dict) and site.get("error"):
-                site_errors.append({"url": site.get("url") or "", "error": site["error"]})
+                url = site.get("url") or ""
+                if not selected or url == selected:
+                    site_errors.append({"url": url, "error": site["error"]})
     return render_template(
         "index.html",
         generated_at=report.get("generatedAt") if report else None,
         view=view,
-        counts=counts() if report else {"all": 0, "open": 0, "broken": 0, "clear": 0},
+        counts=counts(selected or None) if report else {"all": 0, "open": 0, "broken": 0, "clear": 0},
         grouped=grouped,
         site_errors=site_errors,
     )
@@ -439,7 +549,7 @@ def set_verdict(finding_id: int):
         )
         flash("Confirmed broken. Choose a replacement or ask for the link to be deleted.")
     connection.commit()
-    return redirect(url_for("link_detail", finding_id=finding_id))
+    return link_redirect(finding_id)
 
 
 @app.post("/links/<int:finding_id>/action")
@@ -449,7 +559,7 @@ def set_action(finding_id: int):
     row = finding_or_404(finding_id)
     if row["verdict"] != "broken":
         flash("An admin has to confirm the link is broken before the team chooses an action.")
-        return redirect(url_for("link_detail", finding_id=finding_id))
+        return link_redirect(finding_id)
     action = request.form.get("action")
     note = " ".join(request.form.get("note", "").split())[:500]
     alternative = ""
@@ -457,7 +567,7 @@ def set_action(finding_id: int):
         alternative = checker.normalize_url(request.form.get("alternative_url", ""))
         if not alternative:
             flash("Enter a full http or https URL for the replacement.")
-            return redirect(url_for("link_detail", finding_id=finding_id))
+            return link_redirect(finding_id)
     elif action != "delete":
         abort(400)
     user = current_user()
@@ -482,7 +592,7 @@ def set_action(finding_id: int):
         flash("Saved the replacement link.")
     else:
         flash("Requested that the link be deleted.")
-    return redirect(url_for("link_detail", finding_id=finding_id))
+    return link_redirect(finding_id)
 
 
 init_db()

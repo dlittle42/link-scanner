@@ -10,6 +10,23 @@
   <header class="top">
     <a class="brand" href="{{ url_for('index') }}">Link review</a>
     {% if current_user %}
+    <div class="nav-center">
+      {% if scanned_sites %}
+      <form method="get" action="{{ url_for('index') }}">
+        <input type="hidden" name="view" value="{{ request.args.get('view', 'open') }}">
+        <label class="site-picker">
+          Site
+          <select name="site" onchange="this.form.submit()">
+            <option value="">All sites</option>
+            {% for site in scanned_sites %}
+            <option value="{{ site }}" {% if site == selected_site %}selected{% endif %}>{{ site }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </form>
+      {% endif %}
+      <button class="ghost" type="button" id="open-codes">Error codes</button>
+    </div>
     <div class="who">
       <span>{{ current_user.username }}</span>
       <span class="role">{{ current_user.role }}</span>
@@ -20,6 +37,44 @@
     </div>
     {% endif %}
   </header>
+  {% if current_user %}
+  <dialog class="modal" id="codes">
+    <div class="modal-body">
+      <h2>Error codes</h2>
+      <p class="lede">On each site, links are listed in this order, with the ones most likely to be broken first.</p>
+      <dl class="codes">
+        <div>
+          <dt>404 Not Found</dt>
+          <dd>The server answered, and the page is not there. This is the strongest sign the link is broken.</dd>
+        </div>
+        <div>
+          <dt>ConnectError</dt>
+          <dd>The checker could not connect to the host. The name may not resolve, the connection was refused, or the request timed out. The link is often broken, though the site can also be down temporarily. Statuses that are not an HTTP code are grouped here.</dd>
+        </div>
+        <div>
+          <dt>403 Forbidden</dt>
+          <dd>The server refused the request. This is often a bot-protection challenge, so opening the link in a browser may still work.</dd>
+        </div>
+        <div>
+          <dt>429 Too Many Requests</dt>
+          <dd>The server rate-limited the scan. The page is usually fine.</dd>
+        </div>
+      </dl>
+      <p class="meta">Any other HTTP status is listed after these. A 5xx means the server failed while answering.</p>
+      <form method="dialog">
+        <button class="secondary" type="submit">Close</button>
+      </form>
+    </div>
+  </dialog>
+  <script>
+    document.getElementById("open-codes").addEventListener("click", function () {
+      document.getElementById("codes").showModal()
+    })
+    document.getElementById("codes").addEventListener("click", function (event) {
+      if (event.target === event.currentTarget) event.currentTarget.close()
+    })
+  </script>
+  {% endif %}
   <main>
     {% for message in get_flashed_messages() %}
     <p class="flash">{{ message }}</p>
