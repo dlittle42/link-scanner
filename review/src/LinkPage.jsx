@@ -48,16 +48,26 @@ export default function LinkPage() {
       setMissing(true)
       return
     }
-    const decisionResult = await supabase
-      .from("decisions")
-      .select("*")
-      .eq("url", findingResult.data.url)
-      .maybeSingle()
-    if (decisionResult.error) {
-      setError(decisionResult.error.message)
+    const [decisionResult, resolutionResult] = await Promise.all([
+      supabase.from("decisions").select("*").eq("url", findingResult.data.url).maybeSingle(),
+      supabase
+        .from("resolutions")
+        .select("resolved_by, resolved_at")
+        .eq("site", findingResult.data.site)
+        .eq("url", findingResult.data.url)
+        .maybeSingle(),
+    ])
+    if (decisionResult.error || resolutionResult.error) {
+      setError((decisionResult.error || resolutionResult.error).message)
       return
     }
     const decision = decisionResult.data
+      ? {
+          ...decisionResult.data,
+          resolved_at: resolutionResult.data?.resolved_at || null,
+          resolved_by: resolutionResult.data?.resolved_by || null,
+        }
+      : null
     setLink({ ...findingResult.data, decision })
     setSelection(decisionTab(decision))
     setAction(decision?.action === "delete" ? "delete" : "replace")
@@ -94,13 +104,18 @@ export default function LinkPage() {
     setSaving(true)
     setError("")
     setMessage("")
-    const { error: saveError } = await supabase
-      .from("decisions")
-      .update({
-        resolved_at: resolved ? nowLabel() : null,
-        resolved_by: resolved ? auth.email : null,
-      })
-      .eq("url", link.url)
+    const query = resolved
+      ? supabase.from("resolutions").upsert(
+          {
+            site: link.site,
+            url: link.url,
+            resolved_at: nowLabel(),
+            resolved_by: auth.email,
+          },
+          { onConflict: "site,url" },
+        )
+      : supabase.from("resolutions").delete().eq("site", link.site).eq("url", link.url)
+    const { error: saveError } = await query
     setSaving(false)
     if (saveError) {
       setError(saveError.message)

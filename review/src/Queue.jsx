@@ -28,6 +28,15 @@ function kindRank(kind) {
   return kind === "unchecked" ? 1 : 0
 }
 
+function decisionFor(decision, resolution) {
+  if (!decision && !resolution) return null
+  return {
+    ...(decision || {}),
+    resolved_at: resolution?.resolved_at || null,
+    resolved_by: resolution?.resolved_by || null,
+  }
+}
+
 export default function Queue() {
   const [params] = useSearchParams()
   const requested = params.get("view") || "all"
@@ -41,21 +50,23 @@ export default function Queue() {
     Promise.all([
       supabase.from("scans").select("generated_at, errors").eq("id", 1).maybeSingle(),
       supabase.from("findings").select("id, site, url, kind, status").order("site").order("url"),
-      supabase.from("decisions").select("url, verdict, action, resolved_at"),
-    ]).then(([scanResult, findingResult, decisionResult]) => {
+      supabase.from("decisions").select("url, verdict, action"),
+      supabase.from("resolutions").select("site, url, resolved_by, resolved_at"),
+    ]).then(([scanResult, findingResult, decisionResult, resolutionResult]) => {
       if (ignore) return
-      const message = scanResult.error || findingResult.error || decisionResult.error
+      const message = scanResult.error || findingResult.error || decisionResult.error || resolutionResult.error
       if (message) {
         setError(message.message)
         return
       }
       const byUrl = new Map((decisionResult.data || []).map((row) => [row.url, row]))
+      const bySiteUrl = new Map((resolutionResult.data || []).map((row) => [`${row.site}\n${row.url}`, row]))
       setScan(scanResult.data)
       setFindings(
         (findingResult.data || [])
           .map((row) => ({
             ...row,
-            decision: byUrl.get(row.url) || null,
+            decision: decisionFor(byUrl.get(row.url), bySiteUrl.get(`${row.site}\n${row.url}`)),
           }))
           .sort(
             (a, b) =>

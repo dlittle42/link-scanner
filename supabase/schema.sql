@@ -33,6 +33,14 @@ create table public.decisions (
   resolved_at text
 );
 
+create table public.resolutions (
+  site text not null,
+  url text not null,
+  resolved_by text,
+  resolved_at text not null,
+  primary key (site, url)
+);
+
 create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   role text not null check (role in ('admin', 'member'))
@@ -118,6 +126,7 @@ begin
     new.action_at := null;
     new.resolved_by := null;
     new.resolved_at := null;
+    delete from public.resolutions where url = new.url;
     return new;
   end if;
 
@@ -156,9 +165,36 @@ create trigger decisions_enforce_write
   before insert or update on public.decisions
   for each row execute function public.enforce_decision_write();
 
+create or replace function public.enforce_resolution_write()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in to mark a link resolved';
+  end if;
+  if not exists (
+    select 1
+    from public.decisions
+    where url = new.url
+      and verdict = 'broken'
+  ) then
+    raise exception 'Confirm the link is an error before marking it resolved';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger resolutions_enforce_write
+  before insert or update on public.resolutions
+  for each row execute function public.enforce_resolution_write();
+
 alter table public.scans enable row level security;
 alter table public.findings enable row level security;
 alter table public.decisions enable row level security;
+alter table public.resolutions enable row level security;
 alter table public.profiles enable row level security;
 
 create policy scans_read on public.scans
@@ -182,12 +218,30 @@ create policy decisions_update on public.decisions
   using (true)
   with check (true);
 
+create policy resolutions_read on public.resolutions
+  for select to authenticated
+  using (true);
+
+create policy resolutions_insert on public.resolutions
+  for insert to authenticated
+  with check (auth.uid() is not null);
+
+create policy resolutions_update on public.resolutions
+  for update to authenticated
+  using (true)
+  with check (auth.uid() is not null);
+
+create policy resolutions_delete on public.resolutions
+  for delete to authenticated
+  using (auth.uid() is not null);
+
 create policy profiles_read_own on public.profiles
   for select to authenticated
   using (id = auth.uid());
 
 grant select on public.scans, public.findings, public.profiles to authenticated;
 grant select, insert, update on public.decisions to authenticated;
+grant select, insert, update, delete on public.resolutions to authenticated;
 grant execute on function public.is_admin() to authenticated;
 
 grant select, insert, update, delete on public.findings to service_role;
