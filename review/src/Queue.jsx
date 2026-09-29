@@ -144,10 +144,8 @@ export default function Queue() {
                 <ul className="links">
                   {group.map((link) => (
                     <li key={link.id}>
-                      <a className="url" href={link.url} target="_blank" rel="noopener noreferrer">
-                        {link.url}
-                      </a>
-                      <Link className="link-tags" to={reviewPath(link)}>
+                      <Link to={reviewPath(link)}>
+                        <span className="url">{link.url}</span>
                         <span className="tags">
                           <span className="tag status">{link.status}</span>
                           <span className={`tag verdict ${verdictClass(link.decision)}`}>

@@ -229,14 +229,16 @@ export default function LinkPage() {
           >
             No error
           </button>
-          <button
-            type="button"
-            className={selection === "resolved" ? "status-resolved active" : "status-resolved"}
-            disabled={saving || (auth.role !== "admin" && decision?.verdict !== "broken")}
-            onClick={() => choose("resolved")}
-          >
-            Resolved
-          </button>
+          {decision?.verdict === "broken" ? (
+            <button
+              type="button"
+              className={selection === "resolved" ? "status-resolved active" : "status-resolved"}
+              disabled={saving}
+              onClick={() => choose("resolved")}
+            >
+              Resolved
+            </button>
+          ) : null}
         </div>
         {auth.profileReady && auth.session && !auth.role ? (
           <p className="flash warn">This account has no profile role yet. In Supabase, set profiles.role to admin or member.</p>
