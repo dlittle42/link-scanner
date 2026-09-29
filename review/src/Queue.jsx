@@ -30,8 +30,8 @@ function kindRank(kind) {
 
 export default function Queue() {
   const [params] = useSearchParams()
-  const requested = params.get("view") || "open"
-  const view = VIEWS.some(([key]) => key === requested) ? requested : "open"
+  const requested = params.get("view") || "all"
+  const view = VIEWS.some(([key]) => key === requested) ? requested : "all"
   const [scan, setScan] = useState(null)
   const [findings, setFindings] = useState(null)
   const [error, setError] = useState("")
