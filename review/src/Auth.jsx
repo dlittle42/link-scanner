@@ -75,7 +75,7 @@ export function RequireAuth({ children }) {
   if (configError) return <p className="flash warn">{configError}</p>
   if (!auth.ready) return <p className="meta">Loading…</p>
   if (!auth.session) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />
   }
   return children
 }
