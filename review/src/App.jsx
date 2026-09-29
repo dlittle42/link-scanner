@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Link, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { AuthProvider, RequireAuth, useAuth } from "./Auth"
 import LinkPage from "./LinkPage"
 import Queue from "./Queue"
@@ -54,7 +54,7 @@ function CodesModal({ open, onClose }) {
             </div>
           ))}
         </dl>
-        <p className="meta">Any other HTTP status is listed after these. A 5xx means the server failed while answering.</p>
+       {/* <p className="meta">Any other HTTP status is listed after these. A 5xx means the server failed while answering.</p> */}
         <form method="dialog">
           <button className="secondary" type="submit">
             Close
@@ -90,20 +90,74 @@ function Login() {
   }
 
   return (
-    <form className="card narrow" onSubmit={onSubmit}>
-      <h1>Log in</h1>
-      <p className="lede">Admins confirm whether a link is broken. Anyone on the team can then suggest a replacement or ask for it to be deleted.</p>
-      {error ? <p className="flash warn">{error}</p> : null}
-      <label>
-        Email
-        <input type="email" autoComplete="username" required value={username} onChange={(event) => setUsername(event.target.value)} />
-      </label>
-      <label>
-        Password
-        <input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
-      </label>
-      <button type="submit">Log in</button>
-    </form>
+    <div className="login-screen">
+      <form className="card" onSubmit={onSubmit}>
+        <h1>Log in</h1>
+        <p className="lede">Admins confirm whether a link is broken. Anyone on the team can then suggest a replacement or ask for it to be deleted.</p>
+        {error ? <p className="flash warn">{error}</p> : null}
+        <label>
+          Email
+          <input type="email" autoComplete="username" required value={username} onChange={(event) => setUsername(event.target.value)} />
+        </label>
+        <label>
+          Password
+          <input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
+        </label>
+        <button type="submit">Log in</button>
+      </form>
+    </div>
+  )
+}
+
+function AccountMenu({ auth }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef(null)
+  const label = auth.role || "Account"
+
+  useEffect(() => {
+    if (!open) return undefined
+    function onPointerDown(event) {
+      if (!rootRef.current?.contains(event.target)) setOpen(false)
+    }
+    function onKeyDown(event) {
+      if (event.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div className="account" ref={rootRef}>
+      <button
+        className="role-button"
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((value) => !value)}
+      >
+        {label}
+      </button>
+      {open ? (
+        <div className="account-menu" role="menu">
+          <p className="account-email">{auth.email}</p>
+          <button
+            className="account-logout"
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              auth.signOut()
+            }}
+          >
+            Log out
+          </button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -153,11 +207,8 @@ function Shell() {
 
   return (
     <>
-      <header className="top">
-        <Link className="brand" to="/">
-          Link review
-        </Link>
-        {auth.session ? (
+      {auth.session ? (
+        <header className="top">
           <div className="nav-center">
             {sites.length > 0 ? (
               <label className="site-picker">
@@ -172,21 +223,15 @@ function Shell() {
                 </select>
               </label>
             ) : null}
-            <button className="ghost" type="button" onClick={() => setCodesOpen(true)}>
-              Error codes
-            </button>
           </div>
-        ) : null}
-        {auth.session ? (
-          <div className="who">
-            <span>{auth.email}</span>
-            {auth.role ? <span className="role">{auth.role}</span> : null}
-            <button className="text" type="button" onClick={() => auth.signOut()}>
-              Log out
+          <div className="account-tools">
+            <button className="help-button" type="button" aria-label="Error codes" onClick={() => setCodesOpen(true)}>
+              ?
             </button>
+            <AccountMenu auth={auth} />
           </div>
-        ) : null}
-      </header>
+        </header>
+      ) : null}
       <CodesModal open={codesOpen} onClose={() => setCodesOpen(false)} />
       <main>
         {configError ? <p className="flash warn">{configError}</p> : null}

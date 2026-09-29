@@ -28,7 +28,9 @@ create table public.decisions (
   alternative_url text,
   action_note text,
   action_by text,
-  action_at text
+  action_at text,
+  resolved_by text,
+  resolved_at text
 );
 
 create table public.profiles (
@@ -78,6 +80,7 @@ as $$
 declare
   verdict_changed boolean := false;
   action_changed boolean := false;
+  resolved_changed boolean := false;
 begin
   if tg_op = 'UPDATE' then
     verdict_changed := new.verdict is distinct from old.verdict
@@ -88,11 +91,15 @@ begin
       or new.action_note is distinct from old.action_note
       or new.action_by is distinct from old.action_by
       or new.action_at is distinct from old.action_at;
+    resolved_changed := new.resolved_at is distinct from old.resolved_at
+      or new.resolved_by is distinct from old.resolved_by;
   else
     verdict_changed := true;
     action_changed := new.action is not null
       or new.alternative_url is not null
       or new.action_note is not null;
+    resolved_changed := new.resolved_at is not null
+      or new.resolved_by is not null;
   end if;
 
   if verdict_changed and not public.is_admin() then
@@ -109,7 +116,18 @@ begin
     new.action_note := null;
     new.action_by := null;
     new.action_at := null;
+    new.resolved_by := null;
+    new.resolved_at := null;
     return new;
+  end if;
+
+  if resolved_changed then
+    if auth.uid() is null then
+      raise exception 'Sign in to mark a link resolved';
+    end if;
+    if new.verdict is distinct from 'broken' then
+      raise exception 'Confirm the link is an error before marking it resolved';
+    end if;
   end if;
 
   if action_changed then

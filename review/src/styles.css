@@ -27,27 +27,74 @@ a {
   color: #f4f0ea;
 }
 
-.brand {
-  color: inherit;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.who {
+.account-tools {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.9rem;
+  gap: 0.45rem;
+  margin-left: auto;
 }
 
-.role {
+.account {
+  position: relative;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+button.role-button,
+button.help-button,
+.site-picker select {
+  box-sizing: border-box;
+  height: 2.15rem;
+}
+
+button.role-button {
+  background: transparent;
+  color: #f4f0ea;
+  border: 1px solid #8a8178;
+  border-radius: 8px;
+  padding: 0 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 0.72rem;
+  line-height: 1;
+}
+
+button.help-button {
+  width: 2.15rem;
+  padding: 0;
+  background: transparent;
+  color: #f4f0ea;
   border: 1px solid #8a8178;
-  border-radius: 999px;
-  padding: 0.1rem 0.45rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: max-content;
+  min-width: 12rem;
+  padding: 0.75rem 0.85rem 0.7rem;
+  background: #fffdf9;
+  color: #1c1916;
+  border: 1px solid #e3dbd1;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(28, 25, 22, 0.16);
+}
+
+.account-email {
+  margin: 0 0 0.55rem;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+button.account-logout {
+  display: block;
+  background: transparent;
+  color: #1c1916;
+  padding: 0;
+  font-size: 0.9rem;
 }
 
 main {
@@ -72,16 +119,14 @@ h2 {
 }
 
 .site h3 {
-  margin: 0.9rem 0 0.15rem;
+  margin: 1.5rem 0 0.25rem;
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.92rem;
+  font-size: 1.15rem;
   font-weight: 650;
-  color: #5c564f;
+  color: #1c1916;
 }
 
-.group:first-of-type h3 {
-  margin-top: 0.15rem;
-}
+
 
 .site h3 span {
   font-weight: 500;
@@ -93,12 +138,75 @@ h2 {
   background: #fffdf9;
   border: 1px solid #e3dbd1;
   border-radius: 12px;
-  padding: 1.1rem 1.2rem 1.2rem;
   margin: 0 0 1rem;
+}
+
+.card {
+  padding: 1.1rem 1.2rem 1.2rem;
+}
+
+.site {
+  padding: 0 0 0.5rem;
+  overflow: hidden;
+}
+
+.site header {
+  padding: 0.75rem 1.2rem;
+  background: #1c1916;
+  color: #f4f0ea;
+}
+
+.site header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  word-break: break-word;
+}
+
+.site .group {
+  padding: 0 1.2rem;
 }
 
 .narrow {
   max-width: 28rem;
+}
+
+.login-screen {
+  display: flex;
+  justify-content: center;
+  padding: 8vh 0 3rem;
+}
+
+.login-screen .card {
+  width: min(100%, 24rem);
+  margin: 0;
+  padding: 1.6rem 1.5rem 1.5rem;
+}
+
+.login-screen h1 {
+  margin-bottom: 0.35rem;
+}
+
+.login-screen .lede {
+  margin: 0 0 1.1rem;
+}
+
+.login-screen label {
+  margin: 0 0 0.9rem;
+}
+
+.login-screen .flash {
+  margin: 0 0 0.9rem;
+}
+
+button.mark-resolved {
+  margin-top: 0.9rem;
+}
+
+.login-screen button[type="submit"] {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.65rem 0.85rem;
 }
 
 .lede, .meta, .empty {
@@ -122,7 +230,7 @@ input, textarea, button {
   font: inherit;
 }
 
-input[type="text"], input:not([type]), input[type="password"], textarea {
+input[type="text"], input[type="email"], input:not([type]), input[type="password"], textarea {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -168,7 +276,8 @@ button.text {
   margin: 0.8rem 0 1rem;
 }
 
-.views a {
+.views a,
+.views button {
   text-decoration: none;
   color: #1c1916;
   background: #fffdf9;
@@ -178,10 +287,50 @@ button.text {
   font-size: 0.88rem;
 }
 
-.views a.active {
+.views a.status-open:not(.active) {
+  background: #f3e2c4;
+  border-color: #e2c89a;
+}
+
+.views a.status-error:not(.active) {
+  background: #f6d6d6;
+  border-color: #e3b0b0;
+}
+
+.views a.status-clear:not(.active),
+.views a.status-resolved:not(.active) {
+  background: #d7eadc;
+  border-color: #b7d4c0;
+}
+
+.views a.active,
+.views button.active {
   background: #1c1916;
   color: #fff;
   border-color: #1c1916;
+}
+
+.views button:disabled:not(.active) {
+  cursor: default;
+}
+
+.views button.status-open.active {
+  background: #c4a36a;
+  border-color: #c4a36a;
+  color: #1c1916;
+}
+
+.views button.status-error.active {
+  background: #b94a4a;
+  border-color: #b94a4a;
+  color: #fff;
+}
+
+.views button.status-clear.active,
+.views button.status-resolved.active {
+  background: #2f8f55;
+  border-color: #2f8f55;
+  color: #fff;
 }
 
 .views span {
@@ -200,9 +349,17 @@ button.text {
 
 .links a {
   display: block;
-  padding: 0.75rem 0;
   text-decoration: none;
   color: inherit;
+}
+
+.links a.url {
+  padding: 0.75rem 0 0.15rem;
+  color: #1d4e89;
+}
+
+.links a.link-tags {
+  padding: 0 0 0.75rem;
 }
 
 .url {
@@ -237,14 +394,27 @@ button.text {
   background: #d7eadc;
 }
 
+.tag.verdict.resolved {
+  background: #d7eadc;
+}
+
 .sources {
   margin: 0;
   padding-left: 1.1rem;
 }
 
 .sources li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
   margin: 0.25rem 0;
   word-break: break-word;
+}
+
+.open-out {
+  flex: none;
+  margin-top: 0.2rem;
+  line-height: 0;
 }
 
 .flash {
@@ -314,20 +484,12 @@ label.site-picker {
   max-width: min(34rem, 46vw);
   min-width: 10rem;
   margin: 0;
-  padding: 0.35rem 0.55rem;
+  padding: 0 0.55rem;
   border-radius: 8px;
   border: 1px solid #8a8178;
   background: #2a2623;
   color: #f4f0ea;
   font: inherit;
-}
-
-button.ghost {
-  background: transparent;
-  color: #f4f0ea;
-  border: 1px solid #8a8178;
-  padding: 0.35rem 0.7rem;
-  white-space: nowrap;
 }
 
 .modal {

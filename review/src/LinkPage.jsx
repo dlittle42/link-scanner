@@ -1,8 +1,24 @@
 import { useEffect, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useAuth } from "./Auth"
-import { decisionLabel, isHttpUrl, kindLabel, nowLabel, verdictClass } from "./format"
+import { decisionTab, isHttpUrl, kindLabel, nowLabel } from "./format"
 import { supabase } from "./supabase"
+
+function sourceUrl(source) {
+  const match = String(source).match(/^(https?:\/\/\S+?)(?: \(.*\))?$/)
+  return match ? match[1] : null
+}
+
+function OpenOut({ href }) {
+  return (
+    <a className="open-out" href={href} target="_blank" rel="noopener noreferrer" aria-label="Open in a new window">
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+        <path fill="currentColor" d="M6.5 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.5H12.5V13h-9V3.5H6.5V2z" />
+        <path fill="currentColor" d="M9 2h5v5h-1.5V4.56L8.03 9.03 6.97 7.97l4.47-4.47H9V2z" />
+      </svg>
+    </a>
+  )
+}
 
 export default function LinkPage() {
   const { id } = useParams()
@@ -16,6 +32,7 @@ export default function LinkPage() {
   const [alternative, setAlternative] = useState("")
   const [note, setNote] = useState("")
   const [saving, setSaving] = useState(false)
+  const [selection, setSelection] = useState("open")
 
   async function load() {
     const findingResult = await supabase
@@ -42,6 +59,7 @@ export default function LinkPage() {
     }
     const decision = decisionResult.data
     setLink({ ...findingResult.data, decision })
+    setSelection(decisionTab(decision))
     setAction(decision?.action === "delete" ? "delete" : "replace")
     setAlternative(decision?.alternative_url || "")
     setNote(decision?.action_note || "")
@@ -65,10 +83,59 @@ export default function LinkPage() {
     setSaving(false)
     if (saveError) {
       setError(saveError.message)
+      return false
+    }
+    setMessage(verdict === "broken" ? "Marked as Confirmed error." : "Marked as No error.")
+    await load()
+    return true
+  }
+
+  async function markResolved(resolved) {
+    setSaving(true)
+    setError("")
+    setMessage("")
+    const { error: saveError } = await supabase
+      .from("decisions")
+      .update({
+        resolved_at: resolved ? nowLabel() : null,
+        resolved_by: resolved ? auth.email : null,
+      })
+      .eq("url", link.url)
+    setSaving(false)
+    if (saveError) {
+      setError(saveError.message)
+      return false
+    }
+    setMessage(resolved ? "Marked as Resolved." : "Marked as Confirmed error.")
+    await load()
+    return true
+  }
+
+  async function choose(next) {
+    if (next === "open") return
+    if (next === "resolved") {
+      if (link?.decision?.resolved_at) return
+      if (link?.decision?.verdict !== "broken") {
+        if (auth.role !== "admin") {
+          setError("An admin has to confirm the error before it can be resolved.")
+          return
+        }
+        const saved = await saveVerdict("broken")
+        if (!saved) return
+      }
+      await markResolved(true)
       return
     }
-    setMessage(verdict === "broken" ? "Confirmed broken. Choose a replacement or ask for the link to be deleted." : "Marked as not broken.")
-    await load()
+    if (auth.role !== "admin") return
+    if (next === "clear") {
+      await saveVerdict("not_broken")
+      return
+    }
+    if (link?.decision?.resolved_at) {
+      await markResolved(false)
+      return
+    }
+    if (link?.decision?.verdict !== "broken") await saveVerdict("broken")
   }
 
   async function saveAction(event) {
@@ -116,65 +183,75 @@ export default function LinkPage() {
       <article className="card">
         <p className="meta">{link.site}</p>
         <h1>
-          <a href={link.url}>{link.url}</a>
+          <a href={link.url} target="_blank" rel="noopener noreferrer">{link.url}</a>
         </h1>
         <p className="tags">
           <span className="tag kind">{kindLabel(link.kind)}</span>
           <span className="tag status">{link.status}</span>
-          <span className={`tag verdict ${verdictClass(decision)}`}>{decisionLabel(decision)}</span>
         </p>
         {sources.length > 0 ? (
           <>
             <h2>Found on</h2>
             <ul className="sources">
-              {sources.map((source) => (
-                <li key={source}>{source}</li>
-              ))}
+              {sources.map((source) => {
+                const href = sourceUrl(source)
+                return (
+                  <li key={source}>
+                    <span>{source}</span>
+                    {href ? <OpenOut href={href} /> : null}
+                  </li>
+                )
+              })}
             </ul>
           </>
         ) : null}
       </article>
 
       <section className="card">
-        <h2>Is this link broken?</h2>
-        {auth.role === "admin" ? (
-          <>
-            <p className="lede">Confirm what a person should treat as true. Bot walls and rate limits often look broken to the scanner and are not.</p>
-            <div className="row-form">
-              <button type="button" disabled={saving} onClick={() => saveVerdict("broken")}>
-                Confirm broken
-              </button>
-              <button type="button" className="secondary" disabled={saving} onClick={() => saveVerdict("not_broken")}>
-                Not broken
-              </button>
-            </div>
-          </>
-        ) : null}
-        {auth.role !== "admin" && decision?.verdict === "broken" ? (
-          <p>
-            Confirmed broken{decision.verdict_by ? ` by ${decision.verdict_by}` : ""}
-            {decision.verdict_at ? ` on ${decision.verdict_at}` : ""}.
-          </p>
-        ) : null}
-        {auth.role !== "admin" && decision?.verdict === "not_broken" ? (
-          <p>
-            An admin marked this link as not broken
-            {decision.verdict_by ? ` (${decision.verdict_by}${decision.verdict_at ? `, ${decision.verdict_at}` : ""})` : ""}.
-          </p>
-        ) : null}
-        {auth.role !== "admin" && !decision?.verdict ? <p>An admin still needs to confirm whether this link is broken.</p> : null}
+        <h2>Status</h2>
+        <div className="views">
+          <button type="button" className={selection === "open" ? "status-open active" : "status-open"} disabled>
+            Needs Confirmation
+          </button>
+          <button
+            type="button"
+            className={selection === "broken" ? "status-error active" : "status-error"}
+            disabled={saving || auth.role !== "admin"}
+            onClick={() => choose("broken")}
+          >
+            Confirmed error
+          </button>
+          <button
+            type="button"
+            className={selection === "clear" ? "status-clear active" : "status-clear"}
+            disabled={saving || auth.role !== "admin"}
+            onClick={() => choose("clear")}
+          >
+            No error
+          </button>
+          <button
+            type="button"
+            className={selection === "resolved" ? "status-resolved active" : "status-resolved"}
+            disabled={saving || (auth.role !== "admin" && decision?.verdict !== "broken")}
+            onClick={() => choose("resolved")}
+          >
+            Resolved
+          </button>
+        </div>
         {auth.profileReady && auth.session && !auth.role ? (
           <p className="flash warn">This account has no profile role yet. In Supabase, set profiles.role to admin or member.</p>
         ) : null}
-        {auth.role === "admin" && decision?.verdict ? (
+        {decision?.verdict ? (
           <p className="meta">
             Last confirmation{decision.verdict_by ? ` by ${decision.verdict_by}` : ""}
             {decision.verdict_at ? ` on ${decision.verdict_at}` : ""}.
           </p>
-        ) : null}
+        ) : (
+          <p className="lede">An admin confirms whether this is an error. Mark it resolved only after the error has been taken care of.</p>
+        )}
       </section>
 
-      {decision?.verdict === "broken" ? (
+      {decision?.verdict === "broken" && !decision.resolved_at ? (
         <section className="card">
           <h2>What should happen to it?</h2>
           {decision.action === "replace" ? (
@@ -185,7 +262,7 @@ export default function LinkPage() {
           ) : null}
           {decision.action === "replace" && decision.alternative_url ? (
             <p>
-              <a href={decision.alternative_url}>{decision.alternative_url}</a>
+              <a href={decision.alternative_url} target="_blank" rel="noopener noreferrer">{decision.alternative_url}</a>
             </p>
           ) : null}
           {decision.action === "delete" ? (
@@ -217,6 +294,25 @@ export default function LinkPage() {
               {decision.action ? "Update action" : "Save action"}
             </button>
           </form>
+          <button className="mark-resolved" type="button" disabled={saving} onClick={() => choose("resolved")}>
+            Mark resolved
+          </button>
+        </section>
+      ) : null}
+      {decision?.resolved_at ? (
+        <section className="card">
+          <h2>Resolved</h2>
+          <p>
+            Marked resolved{decision.resolved_by ? ` by ${decision.resolved_by}` : ""}
+            {decision.resolved_at ? ` on ${decision.resolved_at}` : ""}.
+          </p>
+          {decision.action === "replace" && decision.alternative_url ? (
+            <p>
+              Replacement: <a href={decision.alternative_url} target="_blank" rel="noopener noreferrer">{decision.alternative_url}</a>
+            </p>
+          ) : null}
+          {decision.action === "delete" ? <p>Deletion was requested.</p> : null}
+          {decision.action_note ? <p className="note">{decision.action_note}</p> : null}
         </section>
       ) : null}
     </>

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { decisionLabel, errorRank, isOpen, kindLabel, verdictClass } from "./format"
+import { decisionLabel, errorRank, isResolved, kindLabel, verdictClass } from "./format"
 import { supabase } from "./supabase"
 
 const VIEWS = [
-  ["open", "Needs a decision"],
-  ["broken", "Confirmed broken"],
-  ["clear", "Not broken"],
-  ["all", "All"],
+  ["open", "Needs Confirmation", "status-open"],
+  ["broken", "Confirmed error", "status-error"],
+  ["clear", "No error", "status-clear"],
+  ["resolved", "Resolved", "status-resolved"],
+  ["all", "All", ""],
 ]
 
 const GROUPS = [
@@ -16,10 +17,11 @@ const GROUPS = [
 ]
 
 function matches(view, decision) {
-  if (view === "broken") return decision?.verdict === "broken"
+  if (view === "broken") return decision?.verdict === "broken" && !isResolved(decision)
   if (view === "clear") return decision?.verdict === "not_broken"
+  if (view === "resolved") return isResolved(decision)
   if (view === "all") return true
-  return isOpen(decision)
+  return !decision?.verdict
 }
 
 function kindRank(kind) {
@@ -39,7 +41,7 @@ export default function Queue() {
     Promise.all([
       supabase.from("scans").select("generated_at, errors").eq("id", 1).maybeSingle(),
       supabase.from("findings").select("id, site, url, kind, status").order("site").order("url"),
-      supabase.from("decisions").select("url, verdict, action"),
+      supabase.from("decisions").select("url, verdict, action, resolved_at"),
     ]).then(([scanResult, findingResult, decisionResult]) => {
       if (ignore) return
       const message = scanResult.error || findingResult.error || decisionResult.error
@@ -82,12 +84,9 @@ export default function Queue() {
 
   const requestedSite = params.get("site") || ""
   const scoped = requestedSite ? findings.filter((row) => row.site === requestedSite) : findings
-  const counts = {
-    open: scoped.filter((row) => isOpen(row.decision)).length,
-    broken: scoped.filter((row) => row.decision?.verdict === "broken").length,
-    clear: scoped.filter((row) => row.decision?.verdict === "not_broken").length,
-    all: scoped.length,
-  }
+  const counts = Object.fromEntries(
+    VIEWS.map(([key]) => [key, scoped.filter((row) => matches(key, row.decision)).length]),
+  )
   const visible = scoped.filter((row) => matches(view, row.decision))
   const grouped = new Map()
   for (const row of visible) {
@@ -117,8 +116,8 @@ export default function Queue() {
         <p className="meta">Scan from {scan.generated_at}</p>
       </div>
       <nav className="views">
-        {VIEWS.map(([key, label]) => (
-          <Link key={key} className={view === key ? "active" : ""} to={viewPath(key)}>
+        {VIEWS.map(([key, label, tone]) => (
+          <Link key={key} className={[tone, view === key ? "active" : ""].filter(Boolean).join(" ")} to={viewPath(key)}>
             {label} <span>{counts[key]}</span>
           </Link>
         ))}
@@ -131,7 +130,9 @@ export default function Queue() {
       {grouped.size === 0 ? <p className="empty">Nothing in this view.</p> : null}
       {[...grouped.entries()].map(([site, links]) => (
         <section className="site" key={site}>
-          <h2>{site}</h2>
+          <header>
+            <h2>{site}</h2>
+          </header>
           {GROUPS.map(([kind, label]) => {
             const group = links.filter((link) => (kind === "unchecked" ? link.kind === "unchecked" : link.kind !== "unchecked"))
             if (group.length === 0) return null
@@ -143,8 +144,10 @@ export default function Queue() {
                 <ul className="links">
                   {group.map((link) => (
                     <li key={link.id}>
-                      <Link to={reviewPath(link)}>
-                        <span className="url">{link.url}</span>
+                      <a className="url" href={link.url} target="_blank" rel="noopener noreferrer">
+                        {link.url}
+                      </a>
+                      <Link className="link-tags" to={reviewPath(link)}>
                         <span className="tags">
                           <span className="tag status">{link.status}</span>
                           <span className={`tag verdict ${verdictClass(link.decision)}`}>

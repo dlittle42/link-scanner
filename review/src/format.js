@@ -4,12 +4,17 @@ export function nowLabel() {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`
 }
 
+export function isResolved(decision) {
+  return Boolean(decision?.resolved_at)
+}
+
 export function decisionLabel(decision) {
-  if (!decision?.verdict) return "Needs confirmation"
-  if (decision.verdict === "not_broken") return "Not broken"
+  if (!decision?.verdict) return "Needs Confirmation"
+  if (decision.verdict === "not_broken") return "No error"
+  if (isResolved(decision)) return "Resolved"
   if (decision.action === "replace") return "Replacement suggested"
   if (decision.action === "delete") return "Deletion requested"
-  return "Confirmed broken"
+  return "Confirmed error"
 }
 
 export function kindLabel(kind) {
@@ -19,12 +24,15 @@ export function kindLabel(kind) {
 
 export function verdictClass(decision) {
   if (!decision?.verdict) return "open"
+  if (isResolved(decision)) return "resolved"
   return decision.verdict
 }
 
-export function isOpen(decision) {
-  if (!decision?.verdict) return true
-  return decision.verdict === "broken" && !decision.action
+export function decisionTab(decision) {
+  if (!decision?.verdict) return "open"
+  if (decision.verdict === "not_broken") return "clear"
+  if (isResolved(decision)) return "resolved"
+  return "broken"
 }
 
 const HTTP_STATUS = /\bHTTP\s+(\d+)\b/
