@@ -4,6 +4,7 @@ import { decisionLabel, errorRank, isResolved, verdictClass } from "./format"
 import { supabase } from "./supabase"
 
 const VIEWS = [
+  ["priority", "Priority", ""],
   ["open", "Needs Confirmation", "status-open"],
   ["broken", "Confirmed error", "status-error"],
   ["clear", "No error", "status-clear"],
@@ -18,16 +19,16 @@ const GROUPS = [
 ]
 
 function reviewGroup(link) {
-  if (link.decision?.verdict) return "reviewed"
+  if (link.decision?.verdict === "not_broken" || isResolved(link.decision)) return "reviewed"
   if (link.kind === "unchecked") return "inaccessible"
   return "errors"
 }
 
 function matches(view, decision) {
+  if (view === "priority" || view === "all") return true
   if (view === "broken") return decision?.verdict === "broken" && !isResolved(decision)
   if (view === "clear") return decision?.verdict === "not_broken"
   if (view === "resolved") return isResolved(decision)
-  if (view === "all") return true
   return !decision?.verdict
 }
 
@@ -46,8 +47,8 @@ function decisionFor(decision, resolution) {
 
 export default function Queue() {
   const [params] = useSearchParams()
-  const requested = params.get("view") || "all"
-  const view = VIEWS.some(([key]) => key === requested) ? requested : "all"
+  const requested = params.get("view") || "priority"
+  const view = VIEWS.some(([key]) => key === requested) ? requested : "priority"
   const [scan, setScan] = useState(null)
   const [findings, setFindings] = useState(null)
   const [error, setError] = useState("")
@@ -154,27 +155,42 @@ export default function Queue() {
           {GROUPS.map(([key, label]) => {
             const group = links.filter((link) => reviewGroup(link) === key)
             if (group.length === 0) return null
-            return (
-              <div className="group" key={key}>
-                <h3>
-                  {label} <span>{group.length}</span>
-                </h3>
-                <ul className="links">
-                  {group.map((link) => (
-                    <li key={link.id}>
-                      <Link to={reviewPath(link)}>
-                        <span className="url">{link.url}</span>
-                        <span className="tags">
-                          <span className="tag status">{link.status}</span>
-                          <span className={`tag verdict ${verdictClass(link.decision)}`}>
-                            {decisionLabel(link.decision)}
-                          </span>
+            const items = (
+              <ul className="links">
+                {group.map((link) => (
+                  <li key={link.id}>
+                    <Link to={reviewPath(link)}>
+                      <span className="url">{link.url}</span>
+                      <span className="tags">
+                        <span className="tag status">{link.status}</span>
+                        <span className={`tag verdict ${verdictClass(link.decision)}`}>
+                          {decisionLabel(link.decision)}
                         </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )
+            if (key !== "reviewed") {
+              return (
+                <div className="group" key={key}>
+                  <h3>
+                    {label} <span>{group.length}</span>
+                  </h3>
+                  {items}
+                </div>
+              )
+            }
+            return (
+              <details className="group" key={key} open={view !== "priority"}>
+                <summary>
+                  <h3>
+                    {label} <span>{group.length}</span>
+                  </h3>
+                </summary>
+                {items}
+              </details>
             )
           })}
         </section>

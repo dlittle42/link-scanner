@@ -134,6 +134,23 @@ h2 {
   opacity: 0.7;
 }
 
+.site details.group summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.site details.group summary::-webkit-details-marker {
+  display: none;
+}
+
+.site details.group summary h3::before {
+  content: "▸ ";
+}
+
+.site details.group[open] summary h3::before {
+  content: "▾ ";
+}
+
 .card, .site {
   background: #fffdf9;
   border: 1px solid #e3dbd1;
