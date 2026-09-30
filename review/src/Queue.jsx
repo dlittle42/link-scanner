@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { decisionLabel, errorRank, isResolved, kindLabel, verdictClass } from "./format"
+import { decisionLabel, errorRank, isResolved, verdictClass } from "./format"
 import { supabase } from "./supabase"
 
 const VIEWS = [
@@ -12,9 +12,16 @@ const VIEWS = [
 ]
 
 const GROUPS = [
-  ["broken", kindLabel("broken")],
-  ["unchecked", kindLabel("unchecked")],
+  ["errors", "Errors"],
+  ["inaccessible", "Inaccessible"],
+  ["reviewed", "Previously reviewed"],
 ]
+
+function reviewGroup(link) {
+  if (link.decision?.verdict) return "reviewed"
+  if (link.kind === "unchecked") return "inaccessible"
+  return "errors"
+}
 
 function matches(view, decision) {
   if (view === "broken") return decision?.verdict === "broken" && !isResolved(decision)
@@ -144,11 +151,11 @@ export default function Queue() {
           <header>
             <h2>{site}</h2>
           </header>
-          {GROUPS.map(([kind, label]) => {
-            const group = links.filter((link) => (kind === "unchecked" ? link.kind === "unchecked" : link.kind !== "unchecked"))
+          {GROUPS.map(([key, label]) => {
+            const group = links.filter((link) => reviewGroup(link) === key)
             if (group.length === 0) return null
             return (
-              <div className="group" key={kind}>
+              <div className="group" key={key}>
                 <h3>
                   {label} <span>{group.length}</span>
                 </h3>

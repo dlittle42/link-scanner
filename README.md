@@ -74,7 +74,7 @@ The workflow file does not contain these values. [`.github/workflows/link-check.
 - on schedule, Mondays at 07:00 UTC (`0 7 * * 1`)
 - when you click **Run workflow** (**Actions → Broken link report → Run workflow**)
 
-Each run uploads `report.html` as the `link-report` artifact, including when the check fails. Open the run and download it from the Artifacts section. When the Supabase secrets are set, the same run publishes `report.json` for the hosted review app. Decisions already stored for a URL are left in place.
+Each run uploads `report.html` as the `link-report` artifact, including when the check fails. Open the run and download it from the Artifacts section. When the Supabase secrets are set, the same run publishes `report.json` for the hosted review app. Decisions already stored for a URL are left in place, unless that URL comes back with a different error code. Then the old review is removed so it can be confirmed again. An existing project should run [`supabase/reviewed_status.sql`](supabase/reviewed_status.sql) once before the next publish.
 
 A public repository does not spend GitHub Actions minutes on this job. A private repository does. The runner needs network access to your sites and to the SMTP server.
 

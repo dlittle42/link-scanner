@@ -88,6 +88,7 @@ export default function LinkPage() {
       verdict,
       verdict_by: auth.email,
       verdict_at: nowLabel(),
+      reviewed_status: link.status,
     }
     const { error: saveError } = await supabase.from("decisions").upsert(row, { onConflict: "url" })
     setSaving(false)

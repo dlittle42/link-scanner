@@ -30,7 +30,8 @@ create table public.decisions (
   action_by text,
   action_at text,
   resolved_by text,
-  resolved_at text
+  resolved_at text,
+  reviewed_status text
 );
 
 create table public.resolutions (
@@ -246,4 +247,6 @@ grant execute on function public.is_admin() to authenticated;
 
 grant select, insert, update, delete on public.findings to service_role;
 grant select, insert, update on public.scans to service_role;
+grant select, update, delete on public.decisions to service_role;
+grant select, delete on public.resolutions to service_role;
 grant usage, select on sequence public.findings_id_seq to service_role;
